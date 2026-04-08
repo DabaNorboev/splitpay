@@ -1,13 +1,7 @@
-import Link from 'next/link'
+// src/app/page.tsx  ← Главная страница (для НЕавторизованных)
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase-server'
-
-const supabase = await createClient()
-const { data: { user } } = await supabase.auth.getUser()
-
-if (user) {
-  redirect('/dashboard')
-}
+import Link from 'next/link'
 
 const features = [
   {
@@ -32,7 +26,14 @@ const features = [
   },
 ]
 
-export default function LandingPage() {
+export default async function HomePage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (user) {
+    redirect('/dashboard')
+  }
+
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
 
@@ -123,22 +124,6 @@ export default function LandingPage() {
               <span className="text-white/80 text-sm">{step}</span>
             </div>
           ))}
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="max-w-md mx-auto px-6 pb-24 text-center">
-        <div className="p-8 bg-[#111118] border border-white/8 rounded-2xl">
-          <h2 className="text-2xl font-black mb-3">Готов начать?</h2>
-          <p className="text-white/40 text-sm mb-6">
-            Регистрация занимает 30 секунд — только номер телефона
-          </p>
-          <Link
-            href="/register"
-            className="block w-full py-3.5 bg-[#4ade80] text-black font-bold rounded-xl hover:bg-[#22c55e] transition-colors"
-          >
-            Создать аккаунт →
-          </Link>
         </div>
       </section>
 
