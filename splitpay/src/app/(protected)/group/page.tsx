@@ -39,6 +39,7 @@ export default function CreateGroupPage() {
         name: name.trim(),
         description: description.trim() || null,
         created_by: user.id,
+        owner_id: user.id,
       })
       .select()
       .single()
