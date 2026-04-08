@@ -189,7 +189,8 @@ export default async function GroupPage({ params }: Props) {
 
   const { balances, totalSpent, simplifiedDebts } = calculateBalances()
 
-  const inviteLink = `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/group/${groupId}/join`
+  const baseUrl = 'https://splitpay-theta.vercel.app'
+  const inviteLink = `${baseUrl}/group/${groupId}/join`
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
