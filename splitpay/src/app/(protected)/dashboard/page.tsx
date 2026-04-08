@@ -17,35 +17,25 @@ export default async function DashboardPage() {
     .eq('id', user.id)
     .single()
 
-  // Простой запрос групп — без сложных join'ов
+  // ✅ ИСПРАВЛЕНО: используем created_by вместо owner_id
+  // И получаем ВСЕ группы одним запросом (RLS сам отфильтрует)
   const { data: groups, error } = await supabase
     .from('groups')
-    .select('id, name, description, created_at')
-    .eq('owner_id', user.id)                    // сначала показываем только свои группы
+    .select(`
+      id, 
+      name, 
+      description, 
+      created_at,
+      created_by
+    `)
     .order('created_at', { ascending: false })
 
   if (error) {
     console.error('Error loading groups:', error)
   }
 
-  // Если своих групп нет — попробуем через group_members
-  let allGroups = groups || []
-
-  if (allGroups.length === 0) {
-    const { data: memberGroups } = await supabase
-      .from('group_members')
-      .select(`
-        groups!inner (
-          id, 
-          name, 
-          description, 
-          created_at
-        )
-      `)
-      .eq('user_id', user.id)
-
-    allGroups = memberGroups?.map((item: any) => item.groups) || []
-  }
+  console.log('Groups loaded:', groups?.length, 'groups')
+  console.log('User ID:', user.id)
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
@@ -80,18 +70,25 @@ export default async function DashboardPage() {
 
         <section>
           <h2 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">
-            Активные группы · {allGroups.length}
+            Активные группы · {groups?.length || 0}
           </h2>
 
-          {allGroups.length > 0 ? (
+          {groups && groups.length > 0 ? (
             <div className="space-y-3">
-              {allGroups.map((group: any) => (
+              {groups.map((group: any) => (
                 <Link
                   key={group.id}
                   href={`/group/${group.id}`}
                   className="block p-6 bg-[#111118] border border-white/10 hover:border-[#4ade80]/40 rounded-3xl transition-all"
                 >
-                  <div className="font-semibold text-xl mb-1">{group.name}</div>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="font-semibold text-xl">{group.name}</div>
+                    {group.created_by === user.id && (
+                      <span className="text-xs px-2 py-1 bg-[#4ade80]/20 text-[#4ade80] rounded-full">
+                        Админ
+                      </span>
+                    )}
+                  </div>
                   
                   {group.description && (
                     <p className="text-white/60 text-sm line-clamp-2 mb-4">
@@ -114,7 +111,7 @@ export default async function DashboardPage() {
               <div className="text-6xl mb-6 opacity-40">👥</div>
               <p className="text-white/50 text-lg mb-2">У тебя пока нет групп</p>
               <p className="text-white/40 text-sm mb-8">
-                Создайте первую группу, чтобы начать делить расходы
+                Создайте первую группу или попросите друзей пригласить вас
               </p>
               <Link
                 href="/create-group"
