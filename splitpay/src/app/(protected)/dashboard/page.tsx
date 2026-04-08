@@ -1,59 +1,81 @@
-// src/app/(protected)/dashboard/page.tsx
-import { redirect } from 'next/navigation'
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import LogoutButton from './logout-button'
-import { createClient } from '@/lib/supabase-server'
+import { createClient } from '@/lib/supabase-browser'
 
-export default async function DashboardPage() {
-  const supabase = await createClient()
+export default function DashboardPage() {
+  const router = useRouter()
+  const supabase = createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const [user, setUser] = useState<any>(null)
+  const [groups, setGroups] = useState<any[]>([])
+  const [profile, setProfile] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
 
-  // Получаем профиль
-  const { data: profile } = await supabase
-    .from('users')
-    .select('name')
-    .eq('id', user.id)
-    .single()
+  useEffect(() => {
+    async function load() {
+      const { data: { session } } = await supabase.auth.getSession()
 
-  // ✅ ИСПРАВЛЕНО: используем created_by вместо owner_id
-  // И получаем ВСЕ группы одним запросом (RLS сам отфильтрует)
-  const { data: groups, error } = await supabase
-    .from('groups')
-    .select(`
-      id, 
-      name, 
-      description, 
-      created_at,
-      created_by
-    `)
-    .order('created_at', { ascending: false })
+      if (!session) {
+        router.push('/login')
+        return
+      }
 
-  if (error) {
-    console.error('Error loading groups:', error)
+      setUser(session.user)
+
+      const { data: profileData } = await supabase
+        .from('users')
+        .select('name')
+        .eq('id', session.user.id)
+        .single()
+
+      setProfile(profileData)
+
+      const { data: groupsData } = await supabase
+        .from('groups')
+        .select('id, name, description, created_at, created_by, owner_id')
+        .order('created_at', { ascending: false })
+
+      setGroups(groupsData || [])
+      setLoading(false)
+    }
+
+    load()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+        <div className="text-white/40">Загрузка...</div>
+      </div>
+    )
   }
-
-  console.log('Groups loaded:', groups?.length, 'groups')
-  console.log('User ID:', user.id)
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
-      {/* NAV */}
       <nav className="flex items-center justify-between px-6 py-4 border-b border-white/5">
         <span className="text-xl font-bold">
           Split<span className="text-[#4ade80]">Pay</span>
         </span>
         <div className="flex items-center gap-4">
           <span className="text-sm text-white/60">
-            {profile?.name ?? user.email?.split('@')[0]}
+            {profile?.name ?? user?.email?.split('@')[0]}
           </span>
-          <LogoutButton />
+          <button
+            onClick={async () => {
+              await supabase.auth.signOut()
+              router.push('/login')
+            }}
+            className="text-sm text-white/40 hover:text-white transition-colors"
+          >
+            Выйти
+          </button>
         </div>
       </nav>
 
       <div className="max-w-lg mx-auto px-4 py-10">
-
         <div className="mb-10">
           <h1 className="text-3xl font-black">
             Привет, {profile?.name?.split(' ')[0] ?? 'друг'} 👋
@@ -70,12 +92,12 @@ export default async function DashboardPage() {
 
         <section>
           <h2 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">
-            Активные группы · {groups?.length || 0}
+            Активные группы · {groups.length}
           </h2>
 
-          {groups && groups.length > 0 ? (
+          {groups.length > 0 ? (
             <div className="space-y-3">
-              {groups.map((group: any) => (
+              {groups.map((group) => (
                 <Link
                   key={group.id}
                   href={`/group/${group.id}`}
@@ -83,13 +105,13 @@ export default async function DashboardPage() {
                 >
                   <div className="flex items-center justify-between mb-1">
                     <div className="font-semibold text-xl">{group.name}</div>
-                    {group.created_by === user.id && (
+                    {group.owner_id === user?.id && (
                       <span className="text-xs px-2 py-1 bg-[#4ade80]/20 text-[#4ade80] rounded-full">
                         Админ
                       </span>
                     )}
                   </div>
-                  
+
                   {group.description && (
                     <p className="text-white/60 text-sm line-clamp-2 mb-4">
                       {group.description}

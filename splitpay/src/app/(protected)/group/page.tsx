@@ -25,12 +25,14 @@ export default function CreateGroupPage() {
       return
     }
 
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
 
-    if (!user) {
+    if (!session) {
       router.push('/login')
       return
     }
+
+    const user = session.user
 
     // Создаём группу
     const { data, error: insertError } = await supabase
@@ -38,8 +40,8 @@ export default function CreateGroupPage() {
       .insert({
         name: name.trim(),
         description: description.trim() || null,
-        created_by: user.id,
         owner_id: user.id,
+        created_by: user.id,
       })
       .select()
       .single()
@@ -51,34 +53,30 @@ export default function CreateGroupPage() {
       return
     }
 
-    // Автоматически добавляем создателя в группу как участника
-    if (data) {
-      await supabase
-        .from('group_members')
-        .insert({
-          group_id: data.id,
-          user_id: user.id,
-          role: 'admin'
-        })
+    // Добавляем создателя в группу как admin
+    const { error: memberError } = await supabase
+      .from('group_members')
+      .insert({
+        group_id: data.id,
+        user_id: user.id,
+        role: 'admin',
+      })
+
+    if (memberError) {
+      console.error('Add member error:', memberError)
     }
 
-    // Успех
-    alert(`Группа "${name}" успешно создана!`)
-    router.push('/dashboard')   // или можешь поменять на `/group/${data.id}`
+    router.push('/dashboard')
     router.refresh()
   }
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
-      {/* Навбар */}
       <nav className="flex items-center justify-between px-6 py-4 border-b border-white/5">
         <Link href="/dashboard" className="text-xl font-bold">
           Split<span className="text-[#4ade80]">Pay</span>
         </Link>
-        <Link 
-          href="/dashboard" 
-          className="text-white/60 hover:text-white transition-colors"
-        >
+        <Link href="/dashboard" className="text-white/60 hover:text-white transition-colors">
           Назад
         </Link>
       </nav>
@@ -90,7 +88,6 @@ export default function CreateGroupPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Название группы */}
           <div>
             <label className="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">
               Название группы
@@ -105,7 +102,6 @@ export default function CreateGroupPage() {
             />
           </div>
 
-          {/* Описание */}
           <div>
             <label className="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">
               Описание (необязательно)

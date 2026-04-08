@@ -1,16 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter, redirect } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
-
-const supabase = await createClient()
-const { data: { user } } = await supabase.auth.getUser()
-
-if (user) {
-  redirect('/dashboard')
-}
 
 export default function LoginPage() {
   const router = useRouter()
@@ -20,6 +13,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // Редирект если уже залогинен
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) router.push('/dashboard')
+    })
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -33,14 +33,13 @@ export default function LoginPage() {
 
     if (error) {
       setError('Неверный email или пароль')
+      setLoading(false)
     } else {
       router.push('/dashboard')
       router.refresh()
     }
-
-    setLoading(false)
   }
-
+  
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white flex flex-col">
 
