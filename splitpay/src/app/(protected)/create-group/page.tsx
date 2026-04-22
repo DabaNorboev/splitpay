@@ -32,6 +32,10 @@ export default function CreateGroupPage() {
         return
       }
 
+      // ✅ Вот здесь user точно существует
+      const userName = user.user_metadata?.name || user.email || 'Пользователь'
+      console.log('USER NAME:', userName) // Должно вывести "test"
+
       const { data: group, error: groupError } = await supabase
         .from('groups')
         .insert({
@@ -56,7 +60,49 @@ export default function CreateGroupPage() {
           role: 'admin'
         })
 
-      // ✅ Редирект сразу на созданную группу (без alert)
+      // Отправка данных в CRM Bitrix24 и сохранение CRM ID
+      const now = new Date().toISOString()
+
+      const crmPayload = {
+      groupId: group.id,
+      groupName: group.name,
+      ownerName: userName,
+      createdAt: now,
+      memberCount: 1,
+      totalAmount: 0,
+      lastActivity: now
+    }
+    console.log('CRM PAYLOAD:', JSON.stringify(crmPayload, null, 2))
+
+      const crmResponse = await fetch('/api/crm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(crmPayload)
+        // body: JSON.stringify({
+        //   groupId: group.id,
+        //   groupName: group.name,
+        //   ownerName: userName,
+        //   createdAt: now,
+        //   memberCount: 1,
+        //   totalAmount: 0,
+        //   lastActivity: now
+        // })
+        
+      })
+
+      const crmResult = await crmResponse.json()
+
+      if (crmResult.success && crmResult.data?.result?.item?.id) {
+        // Сохраняем CRM ID в БД
+        await supabase
+          .from('groups')
+          .update({ crm_item_id: crmResult.data.result.item.id })
+          .eq('id', group.id)
+      } else {
+        console.warn('CRM sync warning: no item ID returned')
+      }
+
+      // Редирект на созданную группу
       router.push(`/group/${group.id}`)
 
     } catch (err: any) {

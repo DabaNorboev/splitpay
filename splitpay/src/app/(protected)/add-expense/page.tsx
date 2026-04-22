@@ -141,11 +141,46 @@ export default function AddExpensePage() {
     const { error: dbError } = await supabase
       .from('expenses')
       .insert(expenseData)
-
+////// 
     if (dbError) {
       console.error('Add expense error:', dbError)
       setError(dbError.message || 'Не удалось добавить расход')
     } else {
+      // Обновление CRM при наличии groupId
+      if (groupId) {
+        try {
+          // 1. Получить текущую общую сумму расходов группы
+          const { data: expensesData } = await supabase
+            .from('expenses')
+            .select('amount')
+            .eq('group_id', groupId)
+          
+          const totalAmount = expensesData?.reduce((acc, e) => acc + e.amount, 0) || 0
+          
+          // 2. Получить crm_item_id группы
+          const { data: groupData } = await supabase
+            .from('groups')
+            .select('crm_item_id')
+            .eq('id', groupId)
+            .single()
+          
+          // 3. Отправить обновление в CRM (не ждем ответа)
+          if (groupData?.crm_item_id) {
+            fetch('/api/crm', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                crmItemId: groupData.crm_item_id,
+                totalAmount: totalAmount,
+                lastActivity: new Date().toISOString()
+              })
+            }).catch(err => console.error('CRM update failed:', err))
+          }
+        } catch (err) {
+          console.error('CRM sync error:', err)
+        }
+      }
+      
       setSuccess(true)
       // Сброс формы
       setAmount('')

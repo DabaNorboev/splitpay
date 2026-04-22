@@ -43,8 +43,41 @@ export default async function JoinGroupPage({ params }: Props) {
 
   if (error) {
     console.error('Join group error:', error)
-    // Можно показать ошибку, но для простоты редиректим на дашборд
     redirect('/dashboard')
+  }
+
+  // Обновление CRM: +1 участник
+  try {
+    // 1. Получить текущее количество участников
+    const { count } = await supabase
+      .from('group_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('group_id', groupId)
+    
+    // 2. Получить crm_item_id
+    const { data: groupData } = await supabase
+      .from('groups')
+      .select('crm_item_id')
+      .eq('id', groupId)
+      .single()
+    
+    // 3. Отправить обновление в CRM
+    if (groupData?.crm_item_id) {
+      // Полный URL для серверного fetch (исправлено!)
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+      
+      fetch(`${appUrl}/api/crm`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          crmItemId: groupData.crm_item_id,
+          memberCount: count || 1,
+          lastActivity: new Date().toISOString()
+        })
+      }).catch(err => console.error('CRM update failed:', err))
+    }
+  } catch (err) {
+    console.error('CRM sync error:', err)
   }
 
   // Успешно добавили — переходим в группу
